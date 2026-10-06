@@ -10,3 +10,4 @@ Das Design passt. Erstelle daraus einen möglichst kleinen Implementation Plan m
 
 # Prompt 3: Subagent-Driven Development
 Setze den Plan mit subagent-driven-development um. Halte den Scope strikt klein. Bei Unklarheiten oder Klärungsbedarf schlage eine passende Variante vor und implementiere sie. Teile mir am Ende mit, ob du eigene Empfehlungen implementieren musstest und an welcher Stelle. 
+Erstelle und nutze einen eigenen Feature-Branch im Git-Repo. Validiere und merge ihn zum Abschluss der Implementierung, sofern keine Fehler oder Bedenken vorliegen.

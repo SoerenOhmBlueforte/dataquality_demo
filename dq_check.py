@@ -1,5 +1,7 @@
+import argparse
 import csv
 from pathlib import Path
+import sys
 
 
 def check_csv(path: Path) -> list[str]:
@@ -35,3 +37,27 @@ def check_csv(path: Path) -> list[str]:
                     problems.append(prefix + "Alter liegt nicht zwischen 0 und 120")
 
     return problems
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="CSV-Datenqualitaet pruefen")
+    parser.add_argument("datei", type=Path, help="UTF-8-CSV mit Header id,name,age")
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as error:
+        return error.code
+
+    try:
+        problems = check_csv(args.datei)
+    except (OSError, ValueError, csv.Error) as error:
+        print(f"Fehler: {error}", file=sys.stderr)
+        return 2
+
+    for problem in problems:
+        print(problem)
+    print(f"Probleme: {len(problems)}")
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

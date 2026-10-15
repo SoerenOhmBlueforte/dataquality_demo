@@ -1,7 +1,12 @@
 from pathlib import Path
+from contextlib import redirect_stderr, redirect_stdout
+import io
+import subprocess
+import sys
 import tempfile
 import unittest
 
+import dq_check
 from dq_check import check_csv
 
 
@@ -92,6 +97,81 @@ class CheckCsvTests(unittest.TestCase):
     def test_missing_file_raises_os_error(self):
         with self.assertRaises(OSError):
             check_csv(self.path)
+
+
+class CliTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.path = Path(self.directory.name) / "kunden.csv"
+
+    def run_main(self, argv):
+        self.assertTrue(callable(getattr(dq_check, "main", None)), "main entry point is missing")
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = dq_check.main(argv)
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_example_reports_five_problems_and_returns_one(self):
+        path = Path(__file__).resolve().parents[1] / "examples" / "kunden.csv"
+        code, stdout, stderr = self.run_main([str(path)])
+        self.assertEqual(code, 1)
+        self.assertEqual(stdout.splitlines(), [
+            "Datensatz 3: doppelte ID '2'",
+            "Datensatz 4: Name fehlt",
+            "Datensatz 5: Alter ist keine ganze Zahl",
+            "Datensatz 6: Alter liegt nicht zwischen 0 und 120",
+            "Datensatz 7: ID fehlt",
+            "Probleme: 5",
+        ])
+        self.assertEqual(stderr, "")
+
+    def test_clean_csv_reports_zero_and_returns_zero(self):
+        self.path.write_text("id,name,age\n1,Anna,32\n", encoding="utf-8")
+        original = self.path.read_bytes()
+        code, stdout, stderr = self.run_main([str(self.path)])
+        self.assertEqual((code, stdout, stderr), (0, "Probleme: 0\n", ""))
+        self.assertEqual(self.path.read_bytes(), original)
+
+    def test_missing_file_returns_two_with_error_on_stderr(self):
+        code, stdout, stderr = self.run_main([str(self.path)])
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, "")
+        self.assertIn("Fehler:", stderr)
+
+    def test_structure_errors_return_two_with_error_on_stderr(self):
+        for content in ["", "name,id,age\n", "id,name,age\n1,Anna\n"]:
+            with self.subTest(content=content):
+                self.path.write_text(content, encoding="utf-8")
+                code, stdout, stderr = self.run_main([str(self.path)])
+                self.assertEqual(code, 2)
+                self.assertEqual(stdout, "")
+                self.assertIn("Fehler:", stderr)
+
+    def test_invalid_utf8_returns_two_with_error_on_stderr(self):
+        self.path.write_bytes(b"id,name,age\n1,\xff,32\n")
+        code, stdout, stderr = self.run_main([str(self.path)])
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, "")
+        self.assertIn("Fehler:", stderr)
+
+    def test_invalid_invocations_return_two_with_error_on_stderr(self):
+        for argv in [[], ["one.csv", "two.csv"]]:
+            with self.subTest(argv=argv):
+                code, stdout, stderr = self.run_main(argv)
+                self.assertEqual(code, 2)
+                self.assertEqual(stdout, "")
+                self.assertTrue(stderr)
+
+    def test_script_entry_point_runs_example(self):
+        root = Path(__file__).resolve().parents[1]
+        result = subprocess.run(
+            [sys.executable, str(root / "dq_check.py"), str(root / "examples" / "kunden.csv")],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout.splitlines()[-1], "Probleme: 5")
+        self.assertEqual(result.stderr, "")
 
 
 if __name__ == "__main__":

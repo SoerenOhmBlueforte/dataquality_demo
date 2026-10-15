@@ -206,6 +206,9 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Superpowers task workspace
+.superpowers/
+
 # PyPI configuration file
 .pypirc
 
